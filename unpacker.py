@@ -2,6 +2,9 @@ import os
 import subprocess
 import shutil
 from pathlib import Path
+import threading
+import time
+import uuid
 
 class Unpacker:
     """Handle unpacking of various archive formats similar to SABnzbd"""
@@ -19,6 +22,9 @@ class Unpacker:
     
     def __init__(self):
         self.check_dependencies()
+        # Job tracking for async operations
+        self.jobs = {}
+        self.jobs_lock = threading.Lock()
     
     def check_dependencies(self):
         """Check if required unpacking tools are available"""
@@ -150,7 +156,7 @@ class Unpacker:
                         ['unrar', 'x', '-o+', '-y', archive_path, destination],
                         capture_output=True,
                         text=True,
-                        timeout=300
+                        timeout=1800  # 30 minutes
                     )
                     if result.returncode == 0:
                         return True, "Success"
@@ -161,7 +167,7 @@ class Unpacker:
                         ['7z', 'x', f'-o{destination}', '-y', archive_path],
                         capture_output=True,
                         text=True,
-                        timeout=300
+                        timeout=1800  # 30 minutes
                     )
                     if result.returncode == 0:
                         return True, "Success"
@@ -177,7 +183,7 @@ class Unpacker:
                         ['unzip', '-o', archive_path, '-d', destination],
                         capture_output=True,
                         text=True,
-                        timeout=300
+                        timeout=1800  # 30 minutes
                     )
                     if result.returncode == 0:
                         return True, "Success"
@@ -188,7 +194,7 @@ class Unpacker:
                         ['7z', 'x', f'-o{destination}', '-y', archive_path],
                         capture_output=True,
                         text=True,
-                        timeout=300
+                        timeout=1800  # 30 minutes
                     )
                     if result.returncode == 0:
                         return True, "Success"
@@ -204,7 +210,7 @@ class Unpacker:
                         ['7z', 'x', f'-o{destination}', '-y', archive_path],
                         capture_output=True,
                         text=True,
-                        timeout=300
+                        timeout=1800  # 30 minutes
                     )
                     if result.returncode == 0:
                         return True, "Success"
@@ -220,7 +226,7 @@ class Unpacker:
                         ['tar', '-xf', archive_path, '-C', destination],
                         capture_output=True,
                         text=True,
-                        timeout=300
+                        timeout=1800  # 30 minutes
                     )
                     if result.returncode == 0:
                         return True, "Success"
@@ -236,3 +242,154 @@ class Unpacker:
             return False, "Extraction timed out"
         except Exception as e:
             return False, f"Error: {str(e)}"
+    
+    def start_unpack_job(self, directory):
+        """
+        Start an async unpacking job.
+        Returns a job_id that can be used to track progress.
+        """
+        job_id = str(uuid.uuid4())
+        
+        with self.jobs_lock:
+            self.jobs[job_id] = {
+                'status': 'queued',
+                'directory': directory,
+                'start_time': time.time(),
+                'progress': 0,
+                'total_archives': 0,
+                'current_archive': '',
+                'processed_archives': 0,
+                'message': 'Job queued',
+                'success': None
+            }
+        
+        # Start unpacking in a background thread
+        thread = threading.Thread(target=self._unpack_job_worker, args=(job_id, directory))
+        thread.daemon = True
+        thread.start()
+        
+        return job_id
+    
+    def get_job_status(self, job_id):
+        """Get the status of a job"""
+        with self.jobs_lock:
+            if job_id not in self.jobs:
+                return None
+            # Return a copy to avoid race conditions
+            return dict(self.jobs[job_id])
+    
+    def _update_job_status(self, job_id, **kwargs):
+        """Update job status with thread safety"""
+        with self.jobs_lock:
+            if job_id in self.jobs:
+                self.jobs[job_id].update(kwargs)
+    
+    def _unpack_job_worker(self, job_id, directory):
+        """Worker function that runs the unpacking in a background thread"""
+        try:
+            self._update_job_status(job_id, status='running', message='Starting unpacking...')
+            
+            # Get list of archives
+            archives = []
+            for item in os.listdir(directory):
+                item_path = os.path.join(directory, item)
+                if os.path.isfile(item_path) and self.is_archive(item):
+                    archives.append(item_path)
+            
+            if not archives:
+                self._update_job_status(
+                    job_id, 
+                    status='completed',
+                    success=False,
+                    message='No archives found in directory',
+                    progress=100
+                )
+                return
+            
+            # Sort archives to process multi-part archives correctly
+            archives.sort()
+            total_archives = len(archives)
+            
+            self._update_job_status(
+                job_id,
+                total_archives=total_archives,
+                message=f'Found {total_archives} archive(s) to process'
+            )
+            
+            # For multi-part RAR archives, only process the first part
+            processed = set()
+            results = []
+            processed_count = 0
+            
+            for i, archive_path in enumerate(archives):
+                if archive_path in processed:
+                    continue
+                
+                archive_name = os.path.basename(archive_path)
+                self._update_job_status(
+                    job_id,
+                    current_archive=archive_name,
+                    processed_archives=processed_count,
+                    progress=int((processed_count / total_archives) * 100),
+                    message=f'Extracting {archive_name}...'
+                )
+                
+                ext = Path(archive_path).suffix.lower()
+                
+                # Extract based on file type
+                success, msg = self._extract_archive(archive_path, directory)
+                results.append((archive_name, success, msg))
+                
+                # Mark multi-part archives as processed
+                if ext in ['.rar', '.r00', '.r01']:
+                    # Mark all related parts as processed
+                    base = archive_path.rsplit('.', 1)[0]
+                    for arch in archives:
+                        if arch.startswith(base):
+                            processed.add(arch)
+                else:
+                    processed.add(archive_path)
+                
+                processed_count += 1
+            
+            # Final status
+            successful = [r for r in results if r[1]]
+            failed = [r for r in results if not r[1]]
+            
+            if successful and not failed:
+                self._update_job_status(
+                    job_id,
+                    status='completed',
+                    success=True,
+                    message=f'Successfully unpacked {len(successful)} archive(s)',
+                    progress=100,
+                    processed_archives=processed_count
+                )
+            elif successful and failed:
+                self._update_job_status(
+                    job_id,
+                    status='completed',
+                    success=True,
+                    message=f'Unpacked {len(successful)} archive(s), {len(failed)} failed',
+                    progress=100,
+                    processed_archives=processed_count
+                )
+            else:
+                error_msgs = [f"{r[0]}: {r[2]}" for r in failed]
+                self._update_job_status(
+                    job_id,
+                    status='completed',
+                    success=False,
+                    message='Failed to unpack: ' + '; '.join(error_msgs),
+                    progress=100,
+                    processed_archives=processed_count
+                )
+                
+        except Exception as e:
+            self._update_job_status(
+                job_id,
+                status='completed',
+                success=False,
+                message=f'Error during unpacking: {str(e)}',
+                progress=100
+            )
