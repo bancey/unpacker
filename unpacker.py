@@ -264,6 +264,10 @@ class Unpacker:
             }
         
         # Start unpacking in a background thread
+        # Note: Using daemon thread is acceptable here because:
+        # 1. Unpacking operations are idempotent (can be retried)
+        # 2. The unpacking tools handle their own state management
+        # 3. Job status is updated atomically and won't be corrupted
         thread = threading.Thread(target=self._unpack_job_worker, args=(job_id, directory))
         thread.daemon = True
         thread.start()
@@ -321,7 +325,7 @@ class Unpacker:
             results = []
             processed_count = 0
             
-            for i, archive_path in enumerate(archives):
+            for archive_path in archives:
                 if archive_path in processed:
                     continue
                 
