@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SABnzbd Unpacker Retry Tool</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📦 SABnzbd Unpacker Retry Tool</h1>
+            <p class="subtitle">Retry unpacking of failed SABnzbd downloads</p>
+        </header>
+
+        <div class="config-section">
+            <h2>Configuration</h2>
+            <div class="config-form">
+                <div class="form-group">
+                    <label for="sabnzbd-dir">SABnzbd Complete Directory:</label>
+                    <div class="input-group">
+                        <input type="text" id="sabnzbd-dir" placeholder="/path/to/sabnzbd/complete">
+                        <button id="update-config-btn" class="btn btn-primary">Update</button>
+                    </div>
+                </div>
+                <div id="tools-status" class="tools-status"></div>
+            </div>
+        </div>
+
+        <div class="folders-section">
+            <div class="section-header">
+                <h2>Folders</h2>
+                <button id="refresh-btn" class="btn btn-secondary">🔄 Refresh</button>
+            </div>
+            
+            <div id="loading" class="loading" style="display: none;">
+                <div class="spinner"></div>
+                <p>Loading folders...</p>
+            </div>
+            
+            <div id="error-message" class="error-message" style="display: none;"></div>
+            
+            <div id="folders-list" class="folders-list"></div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
