@@ -41,8 +41,9 @@ class Unpacker:
     
     def is_extracted(self, directory):
         """
-        Check if archives in directory have been extracted.
-        We consider it extracted if there are non-archive files present.
+        Check if archives in directory need extraction.
+        Returns True if there are archives but no extracted content (needs unpacking).
+        Returns False if extraction already occurred (has non-archive content).
         """
         try:
             has_archive = False
@@ -126,6 +127,16 @@ class Unpacker:
     
     def _extract_archive(self, archive_path, destination):
         """Extract a single archive file"""
+        # Validate paths to prevent command injection
+        archive_path = os.path.abspath(archive_path)
+        destination = os.path.abspath(destination)
+        
+        if not os.path.exists(archive_path):
+            return False, "Archive file not found"
+        
+        if not os.path.exists(destination):
+            return False, "Destination directory not found"
+        
         ext = Path(archive_path).suffix.lower()
         
         try:

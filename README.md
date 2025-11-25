@@ -67,7 +67,7 @@ http://localhost:5000
 The application stores its configuration in `config.json`. You can configure:
 
 - `sabnzbd_complete_dir`: Path to your SABnzbd completed downloads directory
-- `host`: Server host (default: `0.0.0.0`)
+- `host`: Server host (default: `127.0.0.1` - localhost only for security)
 - `port`: Server port (default: `5000`)
 
 You can also edit `config.json` directly:
@@ -75,9 +75,11 @@ You can also edit `config.json` directly:
 {
   "sabnzbd_complete_dir": "/path/to/sabnzbd/complete",
   "port": 5000,
-  "host": "0.0.0.0"
+  "host": "127.0.0.1"
 }
 ```
+
+**Note:** To allow access from other devices on your network, change the host to `0.0.0.0`, but be aware of the security implications.
 
 ## How It Works
 
@@ -88,7 +90,12 @@ You can also edit `config.json` directly:
 
 ## Security Note
 
-⚠️ This tool should only be run on a trusted network or localhost. It provides file system access through a web interface.
+⚠️ **Important Security Considerations:**
+- By default, the application binds to `127.0.0.1` (localhost only) for security
+- Only change the host to `0.0.0.0` if you need access from other devices and understand the risks
+- This tool provides file system access through a web interface
+- Always run it on a trusted network
+- Consider using authentication if exposing to a network
 
 ## License
 

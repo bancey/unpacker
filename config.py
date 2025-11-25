@@ -20,7 +20,7 @@ class Config:
             # Default configuration
             self.sabnzbd_complete_dir = os.path.expanduser('~/Downloads/complete')
             self.port = 5000
-            self.host = '0.0.0.0'
+            self.host = '127.0.0.1'  # Bind to localhost only for security
             self.save_config()
     
     def save_config(self):
