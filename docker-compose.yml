@@ -7,9 +7,9 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      # Mount your SABnzbd complete directory
+      # Mount your SABnzbd complete directory (update path below)
       - /path/to/sabnzbd/complete:/downloads:rw
-      # Persistent configuration
+      # Persistent configuration (directory will be created if it doesn't exist)
       - ./config:/config
     environment:
       # Optional: Override default host/port

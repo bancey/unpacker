@@ -34,7 +34,6 @@ EXPOSE 5000
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
-ENV CONFIG_PATH=/config/config.json
 
 # Run the application
 CMD ["python", "app.py"]

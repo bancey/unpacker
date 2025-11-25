@@ -33,6 +33,9 @@ The easiest way to run the unpacker is using Docker:
 # Pull the latest image from GitHub Container Registry
 docker pull ghcr.io/bancey/unpacker:latest
 
+# Create a config directory
+mkdir -p config
+
 # Run the container
 docker run -d \
   --name sabnzbd-unpacker \

@@ -23,7 +23,7 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y unrar unzip p7zip-full tar
+        sudo apt-get install -y unrar-free unzip p7zip-full tar
         
     - name: Install Python dependencies
       run: |
