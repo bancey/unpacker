@@ -107,5 +107,17 @@ def get_unpack_status(job_id):
     
     return jsonify(status)
 
+@app.route('/api/unpack/active', methods=['GET'])
+def get_active_jobs():
+    """Get all active unpacking jobs"""
+    active_jobs = unpacker.get_all_active_jobs()
+    
+    # Calculate elapsed time for each job
+    for job_id, job_data in active_jobs.items():
+        elapsed = time.time() - job_data['start_time']
+        job_data['elapsed_time'] = int(elapsed)
+    
+    return jsonify(active_jobs)
+
 if __name__ == '__main__':
     app.run(host=config.host, port=config.port, debug=False)

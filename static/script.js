@@ -38,6 +38,11 @@ async function getUnpackStatus(jobId) {
     return await response.json();
 }
 
+async function getActiveJobs() {
+    const response = await fetch('/api/unpack/active');
+    return await response.json();
+}
+
 // UI functions
 function showLoading() {
     document.getElementById('loading').style.display = 'block';
@@ -121,6 +126,45 @@ function displayFolders(folders) {
     document.querySelectorAll('.unpack-btn').forEach(btn => {
         btn.addEventListener('click', handleUnpack);
     });
+    
+    // Resume tracking any in-progress jobs after page refresh
+    resumeJobTracking();
+}
+
+async function resumeJobTracking() {
+    // Check for any stored job IDs in sessionStorage
+    for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (key && key.startsWith('unpack_job_')) {
+            const path = key.replace('unpack_job_', '');
+            const jobId = sessionStorage.getItem(key);
+            
+            if (jobId) {
+                // Find the folder item for this path
+                const folderItem = document.querySelector(`.folder-item[data-path="${path}"]`);
+                if (folderItem) {
+                    const btn = folderItem.querySelector('.unpack-btn');
+                    const statusDiv = folderItem.querySelector('.unpack-status');
+                    
+                    // Check if job is still active
+                    try {
+                        const status = await getUnpackStatus(jobId);
+                        if (status && (status.status === 'running' || status.status === 'queued')) {
+                            // Resume tracking this job
+                            btn.disabled = true;
+                            pollJobStatus(jobId, folderItem, btn, statusDiv);
+                        } else if (status && status.status === 'completed') {
+                            // Job completed while we were away - clean up
+                            sessionStorage.removeItem(key);
+                        }
+                    } catch (error) {
+                        // Job not found - clean up
+                        sessionStorage.removeItem(key);
+                    }
+                }
+            }
+        }
+    }
 }
 
 async function handleUnpack(event) {
@@ -149,6 +193,10 @@ async function handleUnpack(event) {
         
         // Start polling for progress
         const jobId = result.job_id;
+        
+        // Store job_id in sessionStorage so it persists on refresh
+        sessionStorage.setItem(`unpack_job_${path}`, jobId);
+        
         pollJobStatus(jobId, folderItem, btn, statusDiv);
         
     } catch (error) {
@@ -210,7 +258,10 @@ async function pollJobStatus(jobId, folderItem, btn, statusDiv) {
             setTimeout(() => pollJobStatus(jobId, folderItem, btn, statusDiv), 1000);
             
         } else if (status.status === 'completed') {
-            // Job completed
+            // Job completed - clean up sessionStorage
+            const path = status.directory;
+            sessionStorage.removeItem(`unpack_job_${path}`);
+            
             if (status.success) {
                 statusDiv.className = 'unpack-status success-message';
                 statusDiv.textContent = `✓ ${status.message} (${formatTime(status.elapsed_time)})`;

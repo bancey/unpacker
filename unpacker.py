@@ -282,6 +282,23 @@ class Unpacker:
             # Return a copy to avoid race conditions
             return dict(self.jobs[job_id])
     
+    def get_active_job_for_directory(self, directory):
+        """Get the active job for a specific directory, if any"""
+        with self.jobs_lock:
+            for job_id, job_data in self.jobs.items():
+                if job_data['directory'] == directory and job_data['status'] in ['queued', 'running']:
+                    return job_id
+            return None
+    
+    def get_all_active_jobs(self):
+        """Get all active jobs (queued or running)"""
+        with self.jobs_lock:
+            active_jobs = {}
+            for job_id, job_data in self.jobs.items():
+                if job_data['status'] in ['queued', 'running']:
+                    active_jobs[job_id] = dict(job_data)
+            return active_jobs
+    
     def _update_job_status(self, job_id, **kwargs):
         """Update job status with thread safety"""
         with self.jobs_lock:
