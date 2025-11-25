@@ -25,6 +25,37 @@ A lightweight web application that helps you retry unpacking of failed SABnzbd d
 
 ## Installation
 
+### Option 1: Docker (Recommended)
+
+The easiest way to run the unpacker is using Docker:
+
+```bash
+# Pull the latest image from GitHub Container Registry
+docker pull ghcr.io/bancey/unpacker:latest
+
+# Run the container
+docker run -d \
+  --name sabnzbd-unpacker \
+  -p 5000:5000 \
+  -v /path/to/sabnzbd/complete:/downloads:rw \
+  -v $(pwd)/config:/config \
+  ghcr.io/bancey/unpacker:latest
+```
+
+Or use Docker Compose:
+
+```bash
+# Clone the repository
+git clone https://github.com/bancey/unpacker.git
+cd unpacker
+
+# Edit docker-compose.yml to set your SABnzbd directory
+# Then start the service
+docker-compose up -d
+```
+
+### Option 2: Manual Installation
+
 1. Clone the repository:
 ```bash
 git clone https://github.com/bancey/unpacker.git
@@ -48,6 +79,17 @@ For other systems:
 
 ## Usage
 
+### Docker
+
+After starting the container, open your web browser to:
+```
+http://localhost:5000
+```
+
+The SABnzbd directory you mounted at `/downloads` will be automatically configured.
+
+### Manual
+
 1. Start the application:
 ```bash
 python app.py
@@ -63,6 +105,32 @@ http://localhost:5000
 4. Browse folders with archives and click "Unpack Now" to retry unpacking
 
 ## Configuration
+
+### Docker
+
+When using Docker, mount your SABnzbd complete directory as a volume:
+
+```bash
+docker run -d \
+  -p 5000:5000 \
+  -v /path/to/sabnzbd/complete:/downloads:rw \
+  -v $(pwd)/config:/config \
+  -e HOST=0.0.0.0 \
+  -e PORT=5000 \
+  ghcr.io/bancey/unpacker:latest
+```
+
+Or edit `docker-compose.yml`:
+```yaml
+volumes:
+  - /path/to/your/sabnzbd/complete:/downloads:rw
+  - ./config:/config
+environment:
+  - HOST=0.0.0.0  # Allow access from other devices
+  - PORT=5000
+```
+
+### Manual Installation
 
 The application stores its configuration in `config.json`. You can configure:
 
