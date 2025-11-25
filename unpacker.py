@@ -14,6 +14,9 @@ class Unpacker:
         '.tar', '.gz', '.bz2', '.tgz', '.tbz',
     }
     
+    # Directories and files to ignore when checking extraction status
+    IGNORED_ITEMS = {'.', '__MACOSX', '_UNPACK_'}
+    
     def __init__(self):
         self.check_dependencies()
     
@@ -56,11 +59,11 @@ class Unpacker:
                         has_archive = True
                     else:
                         # Ignore common metadata files
-                        if not item.startswith('.') and item not in ['_UNPACK_', '__MACOSX']:
+                        if not item.startswith('.') and item not in self.IGNORED_ITEMS:
                             has_non_archive = True
                 elif os.path.isdir(item_path):
                     # Non-hidden directories suggest extraction occurred
-                    if not item.startswith('.') and item not in ['_UNPACK_', '__MACOSX']:
+                    if not item.startswith('.') and item not in self.IGNORED_ITEMS:
                         has_non_archive = True
             
             # If we have archives but no non-archive content, it's not extracted

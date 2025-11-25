@@ -15,7 +15,8 @@ class Config:
                 data = json.load(f)
                 self.sabnzbd_complete_dir = data.get('sabnzbd_complete_dir', '')
                 self.port = data.get('port', 5000)
-                self.host = data.get('host', '0.0.0.0')
+                # Default to localhost for security, even if not in config
+                self.host = data.get('host', '127.0.0.1')
         else:
             # Default configuration
             self.sabnzbd_complete_dir = os.path.expanduser('~/Downloads/complete')
