@@ -140,8 +140,8 @@ async function resumeJobTracking() {
             const jobId = sessionStorage.getItem(key);
             
             if (jobId) {
-                // Find the folder item for this path
-                const folderItem = document.querySelector(`.folder-item[data-path="${path}"]`);
+                // Find the folder item for this path using escaped selector
+                const folderItem = document.querySelector(`.folder-item[data-path="${CSS.escape(path)}"]`);
                 if (folderItem) {
                     const btn = folderItem.querySelector('.unpack-btn');
                     const statusDiv = folderItem.querySelector('.unpack-status');
