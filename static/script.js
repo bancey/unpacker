@@ -33,6 +33,16 @@ async function unpackFolder(path) {
     return await response.json();
 }
 
+async function getUnpackStatus(jobId) {
+    const response = await fetch(`/api/unpack/status/${jobId}`);
+    return await response.json();
+}
+
+async function getActiveJobs() {
+    const response = await fetch('/api/unpack/active');
+    return await response.json();
+}
+
 // UI functions
 function showLoading() {
     document.getElementById('loading').style.display = 'block';
@@ -116,6 +126,45 @@ function displayFolders(folders) {
     document.querySelectorAll('.unpack-btn').forEach(btn => {
         btn.addEventListener('click', handleUnpack);
     });
+    
+    // Resume tracking any in-progress jobs after page refresh
+    resumeJobTracking();
+}
+
+async function resumeJobTracking() {
+    // Check for any stored job IDs in sessionStorage
+    for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (key && key.startsWith('unpack_job_')) {
+            const path = key.replace('unpack_job_', '');
+            const jobId = sessionStorage.getItem(key);
+            
+            if (jobId) {
+                // Find the folder item for this path using escaped selector
+                const folderItem = document.querySelector(`.folder-item[data-path="${CSS.escape(path)}"]`);
+                if (folderItem) {
+                    const btn = folderItem.querySelector('.unpack-btn');
+                    const statusDiv = folderItem.querySelector('.unpack-status');
+                    
+                    // Check if job is still active
+                    try {
+                        const status = await getUnpackStatus(jobId);
+                        if (status && (status.status === 'running' || status.status === 'queued')) {
+                            // Resume tracking this job
+                            btn.disabled = true;
+                            pollJobStatus(jobId, folderItem, btn, statusDiv);
+                        } else if (status && status.status === 'completed') {
+                            // Job completed while we were away - clean up
+                            sessionStorage.removeItem(key);
+                        }
+                    } catch (error) {
+                        // Job not found - clean up
+                        sessionStorage.removeItem(key);
+                    }
+                }
+            }
+        }
+    }
 }
 
 async function handleUnpack(event) {
@@ -126,32 +175,113 @@ async function handleUnpack(event) {
     
     // Disable button and show loading
     btn.disabled = true;
-    btn.textContent = '⏳ Unpacking...';
+    btn.textContent = '⏳ Starting...';
     statusDiv.style.display = 'none';
     
     try {
+        // Start the unpacking job
         const result = await unpackFolder(path);
         
-        // Show result
-        statusDiv.style.display = 'block';
-        if (result.success) {
-            statusDiv.className = 'unpack-status success-message';
-            statusDiv.textContent = `✓ ${result.message}`;
-            
-            // Update folder badge after successful unpack
-            setTimeout(() => {
-                loadFolders();
-            }, 2000);
-        } else {
+        if (!result.success) {
+            statusDiv.style.display = 'block';
             statusDiv.className = 'unpack-status error-message';
             statusDiv.textContent = `✗ ${result.message}`;
             btn.disabled = false;
             btn.textContent = '🔓 Unpack Now';
+            return;
         }
+        
+        // Start polling for progress
+        const jobId = result.job_id;
+        
+        // Store job_id in sessionStorage so it persists on refresh
+        sessionStorage.setItem(`unpack_job_${path}`, jobId);
+        
+        pollJobStatus(jobId, folderItem, btn, statusDiv);
+        
     } catch (error) {
         statusDiv.style.display = 'block';
         statusDiv.className = 'unpack-status error-message';
         statusDiv.textContent = `Error: ${error.message}`;
+        btn.disabled = false;
+        btn.textContent = '🔓 Unpack Now';
+    }
+}
+
+function formatTime(seconds) {
+    if (seconds < 60) {
+        return `${seconds}s`;
+    }
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}m ${remainingSeconds}s`;
+}
+
+async function pollJobStatus(jobId, folderItem, btn, statusDiv) {
+    try {
+        const status = await getUnpackStatus(jobId);
+        
+        // Update the status display
+        statusDiv.style.display = 'block';
+        statusDiv.className = 'unpack-status';
+        
+        if (status.status === 'running' || status.status === 'queued') {
+            // Show progress
+            const progressPercent = status.progress || 0;
+            const currentArchive = status.current_archive || 'Initializing...';
+            const elapsedTime = formatTime(status.elapsed_time || 0);
+            
+            let progressHtml = `
+                <div class="progress-container">
+                    <div class="progress-header">
+                        <strong>⏳ Unpacking in progress...</strong>
+                        <span class="elapsed-time">Elapsed: ${elapsedTime}</span>
+                    </div>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" style="width: ${progressPercent}%">
+                            <span class="progress-text">${progressPercent}%</span>
+                        </div>
+                    </div>
+                    <div class="progress-info">
+                        ${status.processed_archives || 0} / ${status.total_archives || 0} archives processed
+                    </div>
+                    <div class="current-file">
+                        📦 ${escapeHtml(currentArchive)}
+                    </div>
+                </div>
+            `;
+            
+            statusDiv.innerHTML = progressHtml;
+            btn.textContent = `⏳ Unpacking... ${progressPercent}%`;
+            
+            // Continue polling
+            setTimeout(() => pollJobStatus(jobId, folderItem, btn, statusDiv), 1000);
+            
+        } else if (status.status === 'completed') {
+            // Job completed - clean up sessionStorage
+            const path = status.directory;
+            sessionStorage.removeItem(`unpack_job_${path}`);
+            
+            if (status.success) {
+                statusDiv.className = 'unpack-status success-message';
+                statusDiv.textContent = `✓ ${status.message} (${formatTime(status.elapsed_time)})`;
+                
+                // Refresh folder list after successful unpack
+                setTimeout(() => {
+                    loadFolders();
+                }, 2000);
+            } else {
+                statusDiv.className = 'unpack-status error-message';
+                statusDiv.textContent = `✗ ${status.message}`;
+                btn.disabled = false;
+                btn.textContent = '🔓 Unpack Now';
+            }
+        }
+        
+    } catch (error) {
+        statusDiv.style.display = 'block';
+        statusDiv.className = 'unpack-status error-message';
+        statusDiv.textContent = `Error checking status: ${error.message}`;
         btn.disabled = false;
         btn.textContent = '🔓 Unpack Now';
     }

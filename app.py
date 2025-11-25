@@ -1,4 +1,5 @@
 import os
+import time
 from flask import Flask, render_template, jsonify, request
 from config import Config
 from unpacker import Unpacker
@@ -69,7 +70,7 @@ def list_folders():
 
 @app.route('/api/unpack', methods=['POST'])
 def unpack_folder():
-    """Unpack archives in a specific folder"""
+    """Start an async unpacking job for a specific folder"""
     data = request.json
     folder_path = data.get('path')
     
@@ -83,12 +84,40 @@ def unpack_folder():
     if not folder_path.startswith(config.sabnzbd_complete_dir):
         return jsonify({'success': False, 'message': 'Folder is not in SABnzbd directory'}), 403
     
-    success, message = unpacker.unpack(folder_path)
+    # Start the async unpacking job
+    job_id = unpacker.start_unpack_job(folder_path)
     
     return jsonify({
-        'success': success,
-        'message': message
+        'success': True,
+        'job_id': job_id,
+        'message': 'Unpacking job started'
     })
+
+@app.route('/api/unpack/status/<job_id>', methods=['GET'])
+def get_unpack_status(job_id):
+    """Get the status of an unpacking job"""
+    status = unpacker.get_job_status(job_id)
+    
+    if status is None:
+        return jsonify({'error': 'Job not found'}), 404
+    
+    # Calculate elapsed time
+    elapsed = time.time() - status['start_time']
+    status['elapsed_time'] = int(elapsed)
+    
+    return jsonify(status)
+
+@app.route('/api/unpack/active', methods=['GET'])
+def get_active_jobs():
+    """Get all active unpacking jobs"""
+    active_jobs = unpacker.get_all_active_jobs()
+    
+    # Calculate elapsed time for each job
+    for job_id, job_data in active_jobs.items():
+        elapsed = time.time() - job_data['start_time']
+        job_data['elapsed_time'] = int(elapsed)
+    
+    return jsonify(active_jobs)
 
 if __name__ == '__main__':
     app.run(host=config.host, port=config.port, debug=False)
